@@ -53,16 +53,8 @@ public class LLMConversationHandler extends AbstractInteractionResponseHandler {
         this.conversationHistory = new ArrayList<>();
         this.conversationId = UUID.randomUUID();
         
-        // Load past conversation memory
-        ConversationMemory memory = ConversationMemory.get(citizenData);
-        if (memory != null && !memory.getSummaries().isEmpty()) {
-            // Add context from past conversations
-            String context = "Previous conversation summary: " + 
-                           String.join(" ", memory.getSummaries());
-            conversationHistory.add(
-                new OpenRouterClient.ChatMessage("system", context)
-            );
-        }
+        // Note: Memories are now loaded via the system prompt in PromptBuilder,
+        // not as conversation history messages
     }
     
     /**
@@ -190,7 +182,7 @@ public class LLMConversationHandler extends AbstractInteractionResponseHandler {
                     player.sendSystemMessage(
                         Component.literal(citizenData.getName())
                             .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.AQUA))
-                            .append(Component.literal(": " + response))
+                            .append(Component.literal(": " + response).withColor(net.minecraft.ChatFormatting.WHITE.getColor()))
                     );
                     
                     // Mark colony dirty to save changes

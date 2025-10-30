@@ -2,13 +2,16 @@ package com.thereallemon.llmconversations.memory;
 
 import com.minecolonies.api.colony.ICitizenData;
 import com.thereallemon.llmconversations.config.LLMConfig;
+import com.thereallemon.llmconversations.util.DebugLogger;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Stores conversation history and summaries for citizens
@@ -17,6 +20,10 @@ public class ConversationMemory {
     private static final String NBT_KEY = "llmconversations_memory";
     private static final String NBT_SUMMARIES = "summaries";
     
+    // Runtime memory cache: maps citizen ID to their conversation memory
+    // This persists during a game session but is lost on server restart
+    private static final Map<Integer, ConversationMemory> MEMORY_CACHE = new HashMap<>();
+
     private final List<String> conversationSummaries;
     
     public ConversationMemory() {
@@ -87,39 +94,41 @@ public class ConversationMemory {
     
     /**
      * Get or create memory for a citizen
-     * This retrieves memory from the citizen's additional data
+     * This retrieves memory from the runtime cache
      * @param citizen The citizen to get memory for
      * @return ConversationMemory instance
      */
     public static ConversationMemory get(ICitizenData citizen) {
-        ConversationMemory memory = new ConversationMemory();
-        
-        // TODO: Implement proper NBT persistence with Minecolonies API
-        // For now, memory is runtime-only and will be lost on server restart
-        // This can be improved by hooking into Minecolonies' data storage system
-        
+        int citizenId = citizen.getId();
+
+        // Get from cache or create new
+        ConversationMemory memory = MEMORY_CACHE.computeIfAbsent(citizenId, k -> {
+            DebugLogger.debug("Creating new memory for citizen {} ({})", citizen.getName(), citizenId);
+            return new ConversationMemory();
+        });
+
+        DebugLogger.debug("Retrieved memory for citizen {} ({}): {} summaries",
+            citizen.getName(), citizenId, memory.getSummaries().size());
+
         return memory;
     }
     
     /**
      * Save memory to citizen's data
+     * Currently stores in runtime cache (persists during game session)
      * @param citizen The citizen to save memory for
      * @param memory The memory to save
      */
     public static void save(ICitizenData citizen, ConversationMemory memory) {
-        // TODO: Implement proper NBT persistence with Minecolonies API
-        // For now, memory is runtime-only and will be lost on server restart
-        //
-        // The actual implementation would need to:
-        // 1. Access Minecolonies' citizen data storage system
-        // 2. Call serializeNBT with proper HolderLookup.Provider parameter
-        // 3. Call markDirty with the appropriate int parameter (dirty flag)
-        //
-        // Example (once proper API is understood):
-        // HolderLookup.Provider provider = citizen.getColony().getWorld().registryAccess();
-        // CompoundTag citizenData = citizen.serializeNBT(provider);
-        // citizenData.put(NBT_KEY, memory.serializeNBT());
-        // citizen.markDirty(0); // or appropriate flag value
+        int citizenId = citizen.getId();
+        MEMORY_CACHE.put(citizenId, memory);
+
+        DebugLogger.debug("Saved memory for citizen {} ({}): {} summaries",
+            citizen.getName(), citizenId, memory.getSummaries().size());
+
+        // TODO: Implement proper NBT persistence to survive server restarts
+        // This would require hooking into Minecolonies' data storage system
+        // For now, memories persist during a game session but are lost on restart
     }
     
     /**

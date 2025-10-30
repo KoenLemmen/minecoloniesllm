@@ -60,7 +60,7 @@ public class ChatInterceptHandler {
             player.sendSystemMessage(
                 Component.literal(player.getName().getString())
                     .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GREEN))
-                    .append(Component.literal(": " + message))
+                    .append(Component.literal(": " + message).withColor(net.minecraft.ChatFormatting.WHITE.getColor()))
             );
 
             // Process the message

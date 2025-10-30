@@ -7,6 +7,7 @@ import com.minecolonies.api.colony.colonyEvents.descriptions.ICitizenEventDescri
 import com.minecolonies.api.colony.colonyEvents.descriptions.IBuildingEventDescription;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenHappinessHandler;
 import com.thereallemon.llmconversations.config.LLMConfig;
+import com.thereallemon.llmconversations.memory.ConversationMemory;
 import com.thereallemon.llmconversations.util.DebugLogger;
 import net.minecraft.world.entity.player.Player;
 
@@ -37,11 +38,14 @@ public class PromptBuilder {
             .replace("{saturation}", String.format("%.1f", citizen.getSaturation()))
             .replace("{skills}", getSkillsSummary(citizen));
         
+        // Add conversation memories for context continuity
+        String memoryContext = buildMemoryContext(citizen, player);
+
         // Add recent colony events for situational awareness
         String eventsContext = buildColonyEventsContext(citizen);
         
-        String finalPrompt = basePrompt + eventsContext;
-        
+        String finalPrompt = basePrompt + memoryContext + eventsContext;
+
         DebugLogger.debugSection("Generated System Prompt");
         DebugLogger.debug("Citizen: {} ({})", citizen.getName(), getJobName(citizen));
         DebugLogger.debug("Colony: {}", colony.getName());
@@ -53,6 +57,42 @@ public class PromptBuilder {
         return finalPrompt;
     }
     
+    /**
+     * Build memory context from past conversations with the player
+     * This allows the NPC to remember previous interactions and maintain continuity
+     *
+     * @param citizen The citizen to get memories for
+     * @param player The player having the conversation
+     * @return Formatted string with past conversation memories, or empty string if no memories
+     */
+    private static String buildMemoryContext(ICitizenData citizen, Player player) {
+        ConversationMemory memory = ConversationMemory.get(citizen);
+
+        if (memory == null || memory.getSummaries().isEmpty()) {
+            return "";
+        }
+
+        List<String> summaries = memory.getSummaries();
+
+        // Get the most recent memories (last 5-10 summaries)
+        int maxMemories = 8;
+        int startIndex = Math.max(0, summaries.size() - maxMemories);
+
+        StringBuilder context = new StringBuilder("\n\nYour memories of past conversations with ");
+        context.append(player.getName().getString()).append(":\n");
+
+        for (int i = startIndex; i < summaries.size(); i++) {
+            context.append("- ").append(summaries.get(i)).append("\n");
+        }
+
+        context.append("\nUse these memories to maintain continuity in your conversation. ");
+        context.append("If the player asks you something you should know from a previous conversation, refer to your memories.");
+
+        DebugLogger.debug("Added {} memories to system prompt", summaries.size());
+
+        return context.toString();
+    }
+
     /**
      * Get the job name or "unemployed resident" if jobless
      */
