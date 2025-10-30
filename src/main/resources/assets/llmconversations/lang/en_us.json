@@ -16,13 +16,41 @@
   "llmconversations.message.error_talking": "§cError talking to %s: %s",
 
   "llmconversations.config.title": "LLM Conversations Configuration",
-  "llmconversations.config.apiKey": "OpenRouter API Key",
-  "llmconversations.config.apiKey.tooltip": "Your OpenRouter API key for LLM access",
+
+  "llmconversations.configuration.section.llm_settings": "LLM Settings",
+  "llmconversations.configuration.section.idle_conversations": "Idle Conversations",
+  "llmconversations.configuration.section.memory": "Memory",
+  "llmconversations.configuration.section.conversation_control": "Conversation Control",
+  "llmconversations.configuration.section.debug": "Debug",
+
+  "llmconversations.config.api_key": "API Key",
+  "llmconversations.config.api_key.tooltip": "Your OpenRouter API key (get from https://openrouter.ai)",
+
   "llmconversations.config.model": "LLM Model",
-  "llmconversations.config.model.tooltip": "The AI model to use for conversations",
-  "llmconversations.config.exitWords": "Exit Words",
-  "llmconversations.config.exitWords.tooltip": "Words that end a conversation (comma-separated)",
-  "llmconversations.config.debugMode": "Debug Mode",
-  "llmconversations.config.debugMode.tooltip": "Enable detailed logging for troubleshooting"
+  "llmconversations.config.model.tooltip": "The AI model to use for conversations (e.g., anthropic/claude-3-haiku, openai/gpt-4o-mini)",
+
+  "llmconversations.config.system_prompt": "System Prompt",
+  "llmconversations.config.system_prompt.tooltip": "System prompt template with placeholders: {name}, {job}, {colony_name}, {player_name}, {happiness}, {saturation}, {skills}",
+
+  "llmconversations.config.max_tokens": "Max Tokens",
+  "llmconversations.config.max_tokens.tooltip": "Maximum tokens per response (50-500)",
+
+  "llmconversations.config.temperature": "Temperature",
+  "llmconversations.config.temperature.tooltip": "Response generation temperature (0.0-2.0). Higher = more random, lower = more focused",
+
+  "llmconversations.config.enable_idle_conversations": "Enable Idle Conversations",
+  "llmconversations.config.enable_idle_conversations.tooltip": "Enable citizens to randomly start conversations when idle (not implemented yet)",
+
+  "llmconversations.config.idle_conversation_chance": "Idle Conversation Chance",
+  "llmconversations.config.idle_conversation_chance.tooltip": "Chance (0.0-1.0) for idle citizen to initiate conversation (not implemented yet)",
+
+  "llmconversations.config.max_history_length": "Max History Length",
+  "llmconversations.config.max_history_length.tooltip": "Maximum number of past conversation summaries to remember (0-20)",
+
+  "llmconversations.config.exit_words": "Exit Words",
+  "llmconversations.config.exit_words.tooltip": "Words that end a conversation (comma-separated, case-insensitive)",
+
+  "llmconversations.config.debug_mode": "Debug Mode",
+  "llmconversations.config.debug_mode.tooltip": "Enable debug logging for LLM conversations"
 }
 
