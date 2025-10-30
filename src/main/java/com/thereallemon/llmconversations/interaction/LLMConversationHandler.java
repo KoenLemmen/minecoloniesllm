@@ -346,12 +346,6 @@ public class LLMConversationHandler extends AbstractInteractionResponseHandler {
                         memory.addSummary(summary.trim());
                         ConversationMemory.save(citizenData, memory);
                         DebugLogger.log("✓ Summary successfully saved to memory!");
-
-                        // Also log to player for debugging
-                        player.sendSystemMessage(
-                            Component.literal("[Debug] Summary saved: " + summary.trim())
-                                .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GRAY))
-                        );
                     } else {
                         DebugLogger.error("Failed to save summary - memory object is null!");
                     }
@@ -375,11 +369,6 @@ public class LLMConversationHandler extends AbstractInteractionResponseHandler {
                         memory.addSummary(fallbackSummary);
                         ConversationMemory.save(citizenData, memory);
                         DebugLogger.log("Fallback summary saved: " + fallbackSummary);
-
-                        player.sendSystemMessage(
-                            Component.literal("[Debug] Fallback summary saved: " + fallbackSummary)
-                                .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GRAY))
-                        );
                     } else {
                         DebugLogger.error("Failed to save fallback summary - memory object is null!");
                     }

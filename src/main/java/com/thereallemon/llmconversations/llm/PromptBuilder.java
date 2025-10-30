@@ -75,7 +75,7 @@ public class PromptBuilder {
         List<String> summaries = memory.getSummaries();
 
         // Get the most recent memories (last 5-10 summaries)
-        int maxMemories = 8;
+        int maxMemories = LLMConfig.CLIENT.maxConversationHistoryLength.get();
         int startIndex = Math.max(0, summaries.size() - maxMemories);
 
         StringBuilder context = new StringBuilder("\n\nYour memories of past conversations with ");
