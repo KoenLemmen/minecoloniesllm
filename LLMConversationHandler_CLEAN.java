@@ -1,0 +1,414 @@
+package com.thereallemon.llmconversations.interaction;
+
+import com.ldtteam.blockui.views.BOWindow;
+import com.minecolonies.api.colony.ICitizen;
+import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.ICitizenDataView;
+import com.minecolonies.api.colony.interactionhandling.AbstractInteractionResponseHandler;
+import com.minecolonies.api.colony.interactionhandling.ChatPriority;
+import com.minecolonies.api.colony.interactionhandling.IInteractionResponseHandler;
+import com.thereallemon.llmconversations.llm.OpenRouterClient;
+import com.thereallemon.llmconversations.llm.PromptBuilder;
+import com.thereallemon.llmconversations.memory.ConversationMemory;
+import com.thereallemon.llmconversations.config.LLMConfig;
+import com.thereallemon.llmconversations.state.ConversationStateManager;
+import com.thereallemon.llmconversations.util.DebugLogger;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Handles LLM-powered conversations with Minecolonies citizens
+ */
+public class LLMConversationHandler extends AbstractInteractionResponseHandler {
+    
+    private static final String TYPE_ID = "llmconversations:llm_chat";
+    
+    private final ICitizenData citizenData;
+    private final OpenRouterClient llmClient;
+    private List<OpenRouterClient.ChatMessage> conversationHistory;
+    private String currentResponse = "";
+    private UUID conversationId;
+    private boolean isWaitingForResponse = false;
+    
+    /**
+     * Constructor for new conversation
+     */
+    public LLMConversationHandler(ICitizenData citizenData) {
+        super(
+            Component.literal("Hello! How can I help you?"), // Initial message
+            true, // Primary interaction
+            ChatPriority.CHITCHAT // Priority
+        );
+        
+        this.citizenData = citizenData;
+        this.llmClient = new OpenRouterClient();
+        this.conversationHistory = new ArrayList<>();
+        this.conversationId = UUID.randomUUID();
+        
+        // Load past conversation memory
+        ConversationMemory memory = ConversationMemory.get(citizenData);
+        if (memory != null && !memory.getSummaries().isEmpty()) {
+            // Add context from past conversations
+            String context = "Previous conversation summary: " + 
+                           String.join(" ", memory.getSummaries());
+            conversationHistory.add(
+                new OpenRouterClient.ChatMessage("system", context)
+            );
+        }
+    }
+    
+    /**
+     * Constructor for loading from NBT
+     */
+    public LLMConversationHandler(ICitizen citizen) {
+        super();
+        this.citizenData = (ICitizenData) citizen;
+        this.llmClient = new OpenRouterClient();
+        this.conversationHistory = new ArrayList<>();
+    }
+    
+    @Override
+    public Component getInquiry() {
+        if (isWaitingForResponse) {
+            return Component.translatable("llmconversations.message.thinking");
+        }
+        return Component.literal(currentResponse.isEmpty() ? 
+            Component.translatable("llmconversations.message.initial_greeting").getString() : currentResponse);
+    }
+    
+    @Override
+    public boolean isValid(ICitizenData citizen) {
+        return true;
+    }
+    
+    @Override
+    public boolean isVisible(Level world) {
+        return !isWaitingForResponse;
+    }
+    
+    /**
+     * Process player's chat message during conversation
+     * @param message The player's message
+     * @param player The player
+     */
+    public void handlePlayerMessage(String message, Player player) {
+        DebugLogger.debugSection("Handling Player Message");
+        DebugLogger.debug("Player: {}, Message: '{}'", player.getName().getString(), message);
+        DebugLogger.debug("Citizen: {} ({})", citizenData.getName(), citizenData.getId());
+        
+        if (isWaitingForResponse) {
+            DebugLogger.debug("Already waiting for response, ignoring message");
+            return; // Already processing
+        }
+        
+        isWaitingForResponse = true;
+        conversationHistory.add(
+            new OpenRouterClient.ChatMessage("user", message)
+        );
+        
+        DebugLogger.debug("Added message to history. Total messages: {}", conversationHistory.size());
+        
+        // Check API key
+        String apiKey = LLMConfig.CLIENT.apiKey.get();
+        if (apiKey.isEmpty()) {
+            DebugLogger.error("No API key configured!");
+            player.sendSystemMessage(
+                Component.translatable("llmconversations.message.no_api_key")
+            );
+            isWaitingForResponse = false;
+            return;
+        }
+        
+        // Build system prompt with citizen context
+        String systemPrompt = PromptBuilder.buildSystemPrompt(citizenData, player);
+        String model = LLMConfig.CLIENT.model.get();
+        DebugLogger.debug("Using model: {}", model);
+        
+        // Make async LLM call - message is already in conversationHistory, so we pass history only
+        llmClient.sendChatRequest(
+            apiKey,
+            model,
+            systemPrompt,
+            conversationHistory
+        ).thenAccept(response -> {
+            // Update on server thread
+            if (citizenData.getColony() != null && citizenData.getColony().getWorld() != null) {
+                citizenData.getColony().getWorld().getServer().execute(() -> {
+                    currentResponse = response;
+                    conversationHistory.add(
+                        new OpenRouterClient.ChatMessage("assistant", response)
+                    );
+                    isWaitingForResponse = false;
+                    
+                    // Send response to player via chat with proper color formatting
+                    player.sendSystemMessage(
+                        Component.literal(citizenData.getName())
+                            .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.AQUA))
+                            .append(Component.literal(": " + response))
+                    );
+                    
+                    // Mark colony dirty to save changes
+                    citizenData.getColony().markDirty();
+                });
+            }
+        }).exceptionally(throwable -> {
+            // Handle error on server thread
+            if (citizenData.getColony() != null && citizenData.getColony().getWorld() != null) {
+                citizenData.getColony().getWorld().getServer().execute(() -> {
+                    isWaitingForResponse = false;
+                    player.sendSystemMessage(
+                        Component.translatable("llmconversations.message.error_talking",
+                            citizenData.getName(), throwable.getMessage())
+                    );
+                });
+            }
+            return null;
+        });
+    }
+    
+    /**
+     * End the conversation and save summary using LLM
+     */
+    public void endConversation(Player player) {
+        DebugLogger.debugSection("Ending Conversation");
+        DebugLogger.debug("Citizen: {} (ID: {})", citizenData.getName(), citizenData.getId());
+        DebugLogger.debug("Conversation history size: {}", conversationHistory.size());
+        
+        // Use LLM to create intelligent summary (async)
+        // Only summarize if there are actual user/assistant messages (not just system messages)
+        long messageCount = conversationHistory.stream()
+            .filter(msg -> "user".equals(msg.role) || "assistant".equals(msg.role))
+            .count();
+        
+        if (messageCount > 0) {
+            DebugLogger.log("Starting LLM summarization for conversation with " + citizenData.getName() + 
+                          " (" + messageCount + " messages)");
+            summarizeConversationWithLLM(player);
+        } else {
+            DebugLogger.debug("No conversation messages to summarize (only system messages or empty)");
+        }
+        
+        // Unfreeze stats FIRST (before resuming work)
+        ConversationStateManager.unfreezeStats(citizenData);
+        
+        // Resume citizen's work and AI
+        if (citizenData.getJob() != null) {
+            // Wake up the job - this resets job-specific state (like searchedForFoodToday)
+            citizenData.getJob().onWakeUp();
+            
+            // Reset the AI state machine to IDLE
+            // The CitizenAI will automatically transition to WORK state on next tick
+            citizenData.getJob().resetAI();
+        }
+        
+        // Clear conversation state
+        ConversationStateManager.endConversation(citizenData.getId());
+        
+        // Notify player
+        player.sendSystemMessage(
+            Component.translatable("llmconversations.message.conversation_ended",
+                citizenData.getName())
+        );
+
+        // Notify client that conversation has ended
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
+                serverPlayer,
+                new com.thereallemon.llmconversations.network.SyncConversationStatePacket(citizenData.getId(), false)
+            );
+        }
+        
+        DebugLogger.debugSeparator();
+    }
+    
+    /**
+     * Create a simple summary of the conversation
+     * Fallback method if LLM summarization fails
+     */
+    private String summarizeConversation() {
+        // Simple version: just count topics
+        StringBuilder summary = new StringBuilder();
+        summary.append("Talked about: ");
+        
+        int messageCount = (int) conversationHistory.stream()
+            .filter(msg -> "user".equals(msg.role) || "assistant".equals(msg.role))
+            .count();
+        
+        if (messageCount > 0) {
+            summary.append(messageCount / 2).append(" topics");
+        }
+        
+        return summary.toString();
+    }
+    
+    /**
+     * Use LLM to create a detailed summary of the conversation
+     * This creates intelligent, context-aware summaries that help the NPC remember past interactions
+     */
+    private void summarizeConversationWithLLM(Player player) {
+        DebugLogger.debugSection("LLM-Powered Summarization");
+        DebugLogger.log("=== STARTING SUMMARIZATION FOR " + citizenData.getName() + " ===");
+        
+        if (conversationHistory.isEmpty()) {
+            DebugLogger.log("No conversation history to summarize - skipping");
+            return;
+        }
+        
+        // Build conversation text
+        StringBuilder conversationText = new StringBuilder();
+        for (OpenRouterClient.ChatMessage msg : conversationHistory) {
+            if ("user".equals(msg.role) || "assistant".equals(msg.role)) {
+                conversationText.append(msg.role).append(": ").append(msg.content).append("\n");
+            }
+        }
+        
+        DebugLogger.log("Conversation to summarize (" + conversationHistory.size() + " messages):");
+        DebugLogger.log(conversationText.toString());
+        
+        String apiKey = LLMConfig.CLIENT.apiKey.get();
+        String model = LLMConfig.CLIENT.model.get();
+        
+        if (apiKey.isEmpty()) {
+            DebugLogger.error("Cannot summarize - API key is empty!");
+            return;
+        }
+        
+        // Create summarization prompt optimized for memory retention
+        String summaryPrompt = "Summarize the key points and topics from this conversation in one concise sentence (10-20 words). " +
+                             "Focus on what the player asked about, any requests made, and important information shared:\n\n" + 
+                             conversationText.toString();
+        
+        // System prompt for summarization
+        String summarySystemPrompt = "You are a memory assistant for " + citizenData.getName() + 
+                                   ", a " + (citizenData.getJob() != null ? citizenData.getJob().getJobRegistryEntry().getTranslationKey() : "citizen") + 
+                                   ". Create brief, factual summaries that help remember key conversation points. " +
+                                   "Focus on: requests made, information shared, topics discussed, and any commitments.";
+        
+        DebugLogger.log("Summary System Prompt: " + summarySystemPrompt);
+        DebugLogger.log("Sending summarization request to LLM (model: " + model + ")...");
+        
+        // Make async LLM call for summary
+        llmClient.sendChatRequest(
+            apiKey,
+            model,
+            summarySystemPrompt,
+            new ArrayList<>(), // No history needed for summary
+            summaryPrompt
+        ).thenAccept(summary -> {
+            DebugLogger.log("=== LLM RESPONSE RECEIVED ===");
+            DebugLogger.log("Summary: " + summary.trim());
+            
+            if (citizenData.getColony() != null && citizenData.getColony().getWorld() != null) {
+                citizenData.getColony().getWorld().getServer().execute(() -> {
+                    DebugLogger.log("Executing on server thread - saving summary");
+                    
+                    // Save the LLM-generated summary
+                    ConversationMemory memory = ConversationMemory.get(citizenData);
+                    if (memory != null) {
+                        memory.addSummary(summary.trim());
+                        ConversationMemory.save(citizenData, memory);
+                        DebugLogger.log("✓ Summary successfully saved to memory!");
+                        
+                        // Also log to player for debugging
+                        player.sendSystemMessage(
+                            Component.literal("[Debug] Summary saved: " + summary.trim())
+                                .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GRAY))
+                        );
+                    } else {
+                        DebugLogger.error("Failed to save summary - memory object is null!");
+                    }
+                    DebugLogger.debugSeparator();
+                });
+            } else {
+                DebugLogger.error("Cannot save summary - colony or world is null!");
+            }
+        }).exceptionally(throwable -> {
+            DebugLogger.error("=== LLM SUMMARIZATION FAILED ===");
+            DebugLogger.error("Error: " + throwable.getMessage());
+            DebugLogger.error("Full error: ", throwable);
+            
+            // If summarization fails, fall back to simple summary
+            if (citizenData.getColony() != null && citizenData.getColony().getWorld() != null) {
+                citizenData.getColony().getWorld().getServer().execute(() -> {
+                    DebugLogger.log("Using fallback summarization method");
+                    ConversationMemory memory = ConversationMemory.get(citizenData);
+                    if (memory != null) {
+                        String fallbackSummary = summarizeConversation();
+                        memory.addSummary(fallbackSummary);
+                        ConversationMemory.save(citizenData, memory);
+                        DebugLogger.log("Fallback summary saved: " + fallbackSummary);
+                        
+                        player.sendSystemMessage(
+                            Component.literal("[Debug] Fallback summary saved: " + fallbackSummary)
+                                .withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GRAY))
+                        );
+                    } else {
+                        DebugLogger.error("Failed to save fallback summary - memory object is null!");
+                    }
+                    DebugLogger.debugSeparator();
+                });
+            } else {
+                DebugLogger.error("Cannot save fallback summary - colony or world is null!");
+            }
+            return null;
+        });
+        
+        DebugLogger.log("Summarization request sent - waiting for async response");
+    }
+    
+    @Override
+    public @NotNull CompoundTag serializeNBT(HolderLookup.@NotNull Provider provider) {
+        CompoundTag nbt = super.serializeNBT(provider);
+        nbt.putString("currentResponse", currentResponse);
+        nbt.putUUID("conversationId", conversationId);
+        nbt.putBoolean("isWaiting", isWaitingForResponse);
+
+        // Save conversation history
+        CompoundTag historyTag = new CompoundTag();
+        for (int i = 0; i < conversationHistory.size(); i++) {
+            OpenRouterClient.ChatMessage msg = conversationHistory.get(i);
+            CompoundTag msgTag = new CompoundTag();
+            msgTag.putString("role", msg.role);
+            msgTag.putString("content", msg.content);
+            historyTag.put("msg_" + i, msgTag);
+        }
+        nbt.put("history", historyTag);
+        nbt.putInt("historySize", conversationHistory.size());
+        
+        return nbt;
+    }
+    
+    @Override
+    public void deserializeNBT(HolderLookup.@NotNull Provider provider, @NotNull CompoundTag nbt) {
+        super.deserializeNBT(provider, nbt);
+        currentResponse = nbt.getString("currentResponse");
+        conversationId = nbt.getUUID("conversationId");
+        isWaitingForResponse = nbt.getBoolean("isWaiting");
+
+        // Load conversation history
+        conversationHistory.clear();
+        if (nbt.contains("history")) {
+            CompoundTag historyTag = nbt.getCompound("history");
+            int size = nbt.getInt("historySize");
+            for (int i = 0; i < size; i++) {
+                String key = "msg_" + i;
+                if (historyTag.contains(key)) {
+                    CompoundTag msgTag = historyTag.getCompound(key);
+                    conversationHistory.add(new OpenRouterClient.ChatMessage(
+                        msgTag.getString("role"),
+                        msgTag.getString("content")
+                    ));
+                }
+            }
+        }
+    }
+}
+

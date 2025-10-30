@@ -1,0 +1,28 @@
+{
+  "key.categories.llmconversations": "LLM Conversations",
+  "key.llmconversations.start_conversation": "Start Conversation",
+  "key.llmconversations.cancel_conversation": "Cancel Conversation",
+
+  "llmconversations.message.already_in_conversation": "You are already in a conversation! Type 'goodbye' to end it first.",
+  "llmconversations.message.too_far_away": "You are too far away to start a conversation!",
+  "llmconversations.message.conversation_started": "Started conversation with %s. Type in chat to talk, or say 'goodbye' to end.",
+  "llmconversations.message.not_in_conversation": "You are not in a conversation!",
+  "llmconversations.message.citizen_left": "The citizen has left, ending conversation.",
+  "llmconversations.message.conversation_ended": "Ended conversation with %s. They're returning to work.",
+  "llmconversations.message.handler_lost": "Conversation handler lost, ending conversation.",
+  "llmconversations.message.thinking": "*thinking...*",
+  "llmconversations.message.initial_greeting": "Hello! How can I help you?",
+  "llmconversations.message.no_api_key": "§cError: No OpenRouter API key configured!",
+  "llmconversations.message.error_talking": "§cError talking to %s: %s",
+
+  "llmconversations.config.title": "LLM Conversations Configuration",
+  "llmconversations.config.apiKey": "OpenRouter API Key",
+  "llmconversations.config.apiKey.tooltip": "Your OpenRouter API key for LLM access",
+  "llmconversations.config.model": "LLM Model",
+  "llmconversations.config.model.tooltip": "The AI model to use for conversations",
+  "llmconversations.config.exitWords": "Exit Words",
+  "llmconversations.config.exitWords.tooltip": "Words that end a conversation (comma-separated)",
+  "llmconversations.config.debugMode": "Debug Mode",
+  "llmconversations.config.debugMode.tooltip": "Enable detailed logging for troubleshooting"
+}
+
