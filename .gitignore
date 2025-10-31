@@ -1,4 +1,5 @@
 # Gradle
+gradle/
 .gradle/
 build/
 out/
@@ -21,6 +22,7 @@ bin/
 .vscode/
 
 # Minecraft
+runs/
 run/
 logs/
 crash-reports/
