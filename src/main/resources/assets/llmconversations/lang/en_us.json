@@ -14,6 +14,7 @@
   "llmconversations.message.initial_greeting": "Hello! How can I help you?",
   "llmconversations.message.no_api_key": "§cError: No OpenRouter API key configured!",
   "llmconversations.message.error_talking": "§cError talking to %s: %s",
+  "llmconversations.message.too_far": "You walked too far from %s. Conversation ended.",
 
   "llmconversations.config.title": "LLM Conversations Configuration",
 
@@ -50,6 +51,9 @@
   "llmconversations.config.exit_words": "Exit Words",
   "llmconversations.config.exit_words.tooltip": "Words that end a conversation (comma-separated, case-insensitive)",
 
+  "llmconversations.config.max_conversation_distance": "Max Conversation Distance",
+  "llmconversations.config.max_conversation_distance.tooltip": "Maximum distance in blocks before a conversation automatically ends (set to 0 to disable)",
+
   "llmconversations.config.debug_mode": "Debug Mode",
   "llmconversations.config.debug_mode.tooltip": "Enable debug logging for LLM conversations",
 
@@ -69,6 +73,7 @@
 
   "llmconversations.configuration.conversation_control": "Conversation Control",
   "llmconversations.configuration.conversation_control.exit_words": "Exit Words",
+  "llmconversations.configuration.conversation_control.max_conversation_distance": "Max Conversation Distance",
 
   "llmconversations.configuration.debug": "Debug",
   "llmconversations.configuration.debug.debug_mode": "Debug Mode"

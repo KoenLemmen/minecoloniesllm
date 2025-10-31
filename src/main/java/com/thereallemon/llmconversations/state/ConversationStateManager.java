@@ -2,6 +2,7 @@ package com.thereallemon.llmconversations.state;
 
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
+import com.thereallemon.llmconversations.config.LLMConfig;
 import com.thereallemon.llmconversations.interaction.LLMConversationHandler;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -22,6 +23,12 @@ public class ConversationStateManager {
 
     // citizenId -> frozen saturation value
     private static final Map<Integer, Double> frozenSaturation = new HashMap<>();
+
+    // citizenId -> AbstractEntityCitizen mapping (for movement/look control)
+    private static final Map<Integer, AbstractEntityCitizen> conversationEntities = new HashMap<>();
+
+    // citizenId -> player UUID for look tracking
+    private static final Map<Integer, UUID> lookAtPlayers = new HashMap<>();
 
     /**
      * Start a conversation between a citizen and player
@@ -51,6 +58,9 @@ public class ConversationStateManager {
 
             // Freeze citizen stats
             freezeStats(citizenData);
+
+            // Stop movement and make citizen look at player
+            stopMovementAndLookAtPlayer(citizen, player);
         }
     }
 
@@ -59,9 +69,14 @@ public class ConversationStateManager {
      * @param citizenId The citizen's ID
      */
     public static void endConversation(int citizenId) {
+        // Resume normal movement
+        resumeMovement(citizenId);
+
         activeConversations.remove(citizenId);
         handlers.remove(citizenId);
         frozenSaturation.remove(citizenId);
+        conversationEntities.remove(citizenId);
+        lookAtPlayers.remove(citizenId);
     }
     
     /**
@@ -141,6 +156,9 @@ public class ConversationStateManager {
                 // Restore the frozen saturation value
                 citizen.setSaturation(frozenValue);
             }
+
+            // Maintain look at player
+            maintainLookAtPlayer(citizen);
         }
     }
     
@@ -159,5 +177,144 @@ public class ConversationStateManager {
         activeConversations.clear();
         handlers.clear();
         frozenSaturation.clear();
+        conversationEntities.clear();
+        lookAtPlayers.clear();
+    }
+
+    /**
+     * Stop citizen movement and make them look at the player
+     * @param citizen The citizen entity
+     * @param player The player they're talking to
+     */
+    private static void stopMovementAndLookAtPlayer(AbstractEntityCitizen citizen, ServerPlayer player) {
+        // Stop navigation/pathfinding
+        citizen.getNavigation().stop();
+
+        // Store references for maintenance
+        conversationEntities.put(citizen.getCivilianID(), citizen);
+        lookAtPlayers.put(citizen.getCivilianID(), player.getUUID());
+
+        // Make citizen look at player
+        if (citizen.getLookControl() != null) {
+            citizen.getLookControl().setLookAt(player, 30.0F, 30.0F);
+        }
+    }
+
+    /**
+     * Maintain the citizen looking at the player during conversation
+     * Called every tick to keep them facing the player
+     * Also checks if player is too far away
+     * @param citizenData The citizen data
+     */
+    private static void maintainLookAtPlayer(ICitizenData citizenData) {
+        AbstractEntityCitizen citizen = conversationEntities.get(citizenData.getId());
+        UUID playerUUID = lookAtPlayers.get(citizenData.getId());
+
+        if (citizen != null && playerUUID != null && !citizen.isRemoved()) {
+            // Find the player
+            ServerPlayer player = citizen.getServer() != null ?
+                citizen.getServer().getPlayerList().getPlayer(playerUUID) : null;
+
+            if (player != null) {
+                // Check distance - if too far, end conversation
+                double maxDistance = LLMConfig.CLIENT.maxConversationDistance.get();
+                if (maxDistance > 0) { // Only check if distance checking is enabled
+                    double distance = citizen.distanceTo(player);
+                    if (distance > maxDistance) {
+                        // End conversation due to distance
+                        endConversationDueToDistance(citizenData, player);
+                        return;
+                    }
+                }
+
+                // Stop any movement that might have started
+                if (citizen.getNavigation().isInProgress()) {
+                    citizen.getNavigation().stop();
+                }
+
+                // Continuously update look direction
+                if (citizen.getLookControl() != null) {
+                    citizen.getLookControl().setLookAt(player, 30.0F, 30.0F);
+                }
+            } else {
+                // Player not found (logged out, changed dimension, etc.)
+                endConversationDueToPlayerGone(citizenData);
+            }
+        }
+    }
+
+    /**
+     * End conversation because player walked too far away
+     * @param citizenData The citizen data
+     * @param player The player
+     */
+    private static void endConversationDueToDistance(ICitizenData citizenData, ServerPlayer player) {
+        // Get handler to properly end conversation
+        LLMConversationHandler handler = handlers.get(citizenData.getId());
+
+        // Notify player
+        player.sendSystemMessage(
+            net.minecraft.network.chat.Component.translatable("llmconversations.message.too_far",
+                citizenData.getName())
+        );
+
+        // End conversation properly through handler if available
+        if (handler != null) {
+            handler.endConversation(player);
+        } else {
+            // Fallback cleanup
+            unfreezeStats(citizenData);
+            endConversation(citizenData.getId());
+
+            if (citizenData.getJob() != null) {
+                citizenData.getJob().onWakeUp();
+                citizenData.getJob().resetAI();
+            }
+
+            // Sync to client
+            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
+                player,
+                new com.thereallemon.llmconversations.network.SyncConversationStatePacket(
+                    citizenData.getId(), false)
+            );
+        }
+    }
+
+    /**
+     * End conversation because player is gone (logged out, dimension change, etc.)
+     * @param citizenData The citizen data
+     */
+    private static void endConversationDueToPlayerGone(ICitizenData citizenData) {
+        // Clean up without trying to message the player
+        LLMConversationHandler handler = handlers.get(citizenData.getId());
+
+        if (handler != null) {
+            // Can't call endConversation(player) since player is gone
+            // Do manual cleanup
+            unfreezeStats(citizenData);
+            endConversation(citizenData.getId());
+
+            if (citizenData.getJob() != null) {
+                citizenData.getJob().onWakeUp();
+                citizenData.getJob().resetAI();
+            }
+        } else {
+            // Handler already gone, just clean up state
+            unfreezeStats(citizenData);
+            endConversation(citizenData.getId());
+        }
+    }
+
+    /**
+     * Resume normal movement after conversation ends
+     * @param citizenId The citizen's ID
+     */
+    private static void resumeMovement(int citizenId) {
+        AbstractEntityCitizen citizen = conversationEntities.get(citizenId);
+        if (citizen != null && !citizen.isRemoved()) {
+            // Navigation will resume naturally when the AI state machine continues
+            // The look control will also return to normal behavior
+            // No explicit action needed - just removing from our tracking maps is sufficient
+        }
     }
 }

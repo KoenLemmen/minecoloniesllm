@@ -23,7 +23,8 @@ public class LLMConfig {
         public final ModConfigSpec.DoubleValue temperature;
         public final ModConfigSpec.BooleanValue debugMode;
         public final ModConfigSpec.ConfigValue<String> exitWords;
-        
+        public final ModConfigSpec.DoubleValue maxConversationDistance;
+
         public ClientConfig(ModConfigSpec.Builder builder) {
             builder.comment("LLM Conversations Configuration")
                    .push("llm_settings");
@@ -105,6 +106,12 @@ public class LLMConfig {
                 .translation("llmconversations.config.exit_words")
                 .define("exit_words", "goodbye,bye,cya,exit,stop,later");
             
+            maxConversationDistance = builder
+                .comment("Maximum distance in blocks before a conversation automatically ends",
+                         "Set to 0 to disable distance checking")
+                .translation("llmconversations.config.max_conversation_distance")
+                .defineInRange("max_conversation_distance", 10.0, 0.0, 50.0);
+
             builder.pop();
             
             builder.comment("Debug Settings")
