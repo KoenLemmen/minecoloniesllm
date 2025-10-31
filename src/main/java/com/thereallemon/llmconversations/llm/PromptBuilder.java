@@ -6,6 +6,8 @@ import com.minecolonies.api.colony.colonyEvents.descriptions.IColonyEventDescrip
 import com.minecolonies.api.colony.colonyEvents.descriptions.ICitizenEventDescription;
 import com.minecolonies.api.colony.colonyEvents.descriptions.IBuildingEventDescription;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenHappinessHandler;
+import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenDiedEvent;
+import com.minecolonies.core.colony.eventhooks.citizenEvents.VisitorSpawnedEvent;
 import com.thereallemon.llmconversations.config.LLMConfig;
 import com.thereallemon.llmconversations.memory.ConversationMemory;
 import com.thereallemon.llmconversations.util.DebugLogger;
@@ -176,7 +178,7 @@ public class PromptBuilder {
             }
             
             // Get the last 5-10 most recent events (configurable)
-            int maxEvents = 8;
+            int maxEvents = LLMConfig.CLIENT.maxConversationHistoryLength.get();
             int eventCount = Math.min(maxEvents, events.size());
             int startIndex = Math.max(0, events.size() - eventCount);
             
@@ -195,9 +197,25 @@ public class PromptBuilder {
                     if (eventName.toLowerCase().contains("born")) {
                         context.append("- ").append(citizenName).append(" was born in the colony\n");
                     } else if (eventName.toLowerCase().contains("died")) {
-                        context.append("- ").append(citizenName).append(" passed away\n");
+                        // **NEW: Include death cause**
+                        if (event instanceof CitizenDiedEvent) {
+                            CitizenDiedEvent diedEvent = (CitizenDiedEvent) event;
+                            String deathCause = diedEvent.getDeathCause();
+                            if (deathCause != null && !deathCause.isEmpty()) {
+                                context.append("- ").append(citizenName).append(" passed away (").append(deathCause).append(")\n");
+                            } else {
+                                context.append("- ").append(citizenName).append(" passed away\n");
+                            }
+                        } else {
+                            context.append("- ").append(citizenName).append(" passed away\n");
+                        }
                     } else if (eventName.toLowerCase().contains("spawn")) {
-                        context.append("- ").append(citizenName).append(" joined the colony\n");
+                        // Distinguish between regular citizens and visitors
+                        if (event instanceof VisitorSpawnedEvent) {
+                            context.append("- ").append(citizenName).append(" arrived as a visitor\n");
+                        } else {
+                            context.append("- ").append(citizenName).append(" joined the colony\n");
+                        }
                     } else if (eventName.toLowerCase().contains("grown")) {
                         context.append("- ").append(citizenName).append(" grew up\n");
                     } else {
@@ -229,7 +247,7 @@ public class PromptBuilder {
                 }
             }
             
-            context.append("\nYou can naturally mention these events in conversation if relevant.");
+            context.append("\nYou can naturally mention these events in conversation, only if relevant.");
             
             return context.toString();
             

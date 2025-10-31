@@ -33,7 +33,7 @@
   "llmconversations.config.system_prompt.tooltip": "System prompt template with placeholders: {name}, {job}, {colony_name}, {player_name}, {happiness}, {saturation}, {skills}",
 
   "llmconversations.config.max_tokens": "Max Tokens",
-  "llmconversations.config.max_tokens.tooltip": "Maximum tokens per response (50-500)",
+  "llmconversations.config.max_tokens.tooltip": "Maximum tokens per response (100-1000)",
 
   "llmconversations.config.temperature": "Temperature",
   "llmconversations.config.temperature.tooltip": "Response generation temperature (0.0-2.0). Higher = more random, lower = more focused",
@@ -51,6 +51,26 @@
   "llmconversations.config.exit_words.tooltip": "Words that end a conversation (comma-separated, case-insensitive)",
 
   "llmconversations.config.debug_mode": "Debug Mode",
-  "llmconversations.config.debug_mode.tooltip": "Enable debug logging for LLM conversations"
+  "llmconversations.config.debug_mode.tooltip": "Enable debug logging for LLM conversations",
+
+  "llmconversations.configuration.llm_settings": "LLM Settings",
+  "llmconversations.configuration.llm_settings.api_key": "API Key",
+  "llmconversations.configuration.llm_settings.model": "LLM Model",
+  "llmconversations.configuration.llm_settings.system_prompt": "System Prompt",
+  "llmconversations.configuration.llm_settings.max_tokens": "Max Tokens",
+  "llmconversations.configuration.llm_settings.temperature": "Temperature",
+
+  "llmconversations.configuration.idle_conversations": "Idle Conversations",
+  "llmconversations.configuration.idle_conversations.enable_idle_conversations": "Enable Idle Conversations",
+  "llmconversations.configuration.idle_conversations.idle_conversation_chance": "Idle Conversation Chance",
+
+  "llmconversations.configuration.memory": "Memory",
+  "llmconversations.configuration.memory.max_history_length": "Max History Length",
+
+  "llmconversations.configuration.conversation_control": "Conversation Control",
+  "llmconversations.configuration.conversation_control.exit_words": "Exit Words",
+
+  "llmconversations.configuration.debug": "Debug",
+  "llmconversations.configuration.debug.debug_mode": "Debug Mode"
 }
 
