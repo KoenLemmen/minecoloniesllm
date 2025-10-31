@@ -94,41 +94,77 @@ public class ConversationMemory {
     
     /**
      * Get or create memory for a citizen
-     * This retrieves memory from the runtime cache
+     * This loads from persistent SavedData, ensuring survival across game restarts
      * @param citizen The citizen to get memory for
      * @return ConversationMemory instance
      */
     public static ConversationMemory get(ICitizenData citizen) {
         int citizenId = citizen.getId();
 
-        // Get from cache or create new
-        ConversationMemory memory = MEMORY_CACHE.computeIfAbsent(citizenId, k -> {
-            DebugLogger.debug("Creating new memory for citizen {} ({})", citizen.getName(), citizenId);
-            return new ConversationMemory();
-        });
+        // Check runtime cache first for performance
+        ConversationMemory memory = MEMORY_CACHE.get(citizenId);
+        if (memory != null) {
+            DebugLogger.debug("Retrieved cached memory for citizen {} ({}): {} summaries",
+                citizen.getName(), citizenId, memory.getSummaries().size());
+            return memory;
+        }
 
-        DebugLogger.debug("Retrieved memory for citizen {} ({}): {} summaries",
-            citizen.getName(), citizenId, memory.getSummaries().size());
+        // Not in cache - load from persistent storage
+        try {
+            // Get the server from the colony
+            var server = citizen.getColony().getWorld().getServer();
+            if (server != null) {
+                MemorySavedData savedData = MemorySavedData.get(server);
+                memory = savedData.getMemory(citizenId);
 
+                DebugLogger.debug("Loaded memory from SavedData for citizen {} ({}): {} summaries",
+                    citizen.getName(), citizenId, memory.getSummaries().size());
+            } else {
+                // Shouldn't happen on server, but create empty if it does
+                DebugLogger.debug("Server not available for citizen {} ({}), creating empty memory",
+                    citizen.getName(), citizenId);
+                memory = new ConversationMemory();
+            }
+        } catch (Exception e) {
+            DebugLogger.debug("Failed to load memory for citizen {} ({}): {}, creating new",
+                citizen.getName(), citizenId, e.getMessage());
+            memory = new ConversationMemory();
+        }
+
+        // Store in cache for faster access
+        MEMORY_CACHE.put(citizenId, memory);
         return memory;
     }
     
     /**
      * Save memory to citizen's data
-     * Currently stores in runtime cache (persists during game session)
+     * Persists to SavedData for survival across game restarts
      * @param citizen The citizen to save memory for
      * @param memory The memory to save
      */
     public static void save(ICitizenData citizen, ConversationMemory memory) {
         int citizenId = citizen.getId();
+
+        // Update runtime cache
         MEMORY_CACHE.put(citizenId, memory);
 
-        DebugLogger.debug("Saved memory for citizen {} ({}): {} summaries",
-            citizen.getName(), citizenId, memory.getSummaries().size());
+        try {
+            // Get the server and save to persistent storage
+            var server = citizen.getColony().getWorld().getServer();
+            if (server != null) {
+                MemorySavedData savedData = MemorySavedData.get(server);
+                savedData.saveMemory(citizenId, memory);
 
-        // TODO: Implement proper NBT persistence to survive server restarts
-        // This would require hooking into Minecolonies' data storage system
-        // For now, memories persist during a game session but are lost on restart
+                DebugLogger.debug("Saved memory to SavedData for citizen {} ({}): {} summaries",
+                    citizen.getName(), citizenId, memory.getSummaries().size());
+            } else {
+                DebugLogger.debug("Server not available for citizen {} ({}), memory only cached",
+                    citizen.getName(), citizenId);
+            }
+        } catch (Exception e) {
+            DebugLogger.debug("Failed to save memory for citizen {} ({}): {}",
+                citizen.getName(), citizenId, e.getMessage());
+        }
     }
     
     /**

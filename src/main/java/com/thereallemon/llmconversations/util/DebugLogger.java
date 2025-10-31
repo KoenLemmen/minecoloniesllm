@@ -31,6 +31,10 @@ public class DebugLogger {
         LLMConversationsMod.LOGGER.error("[LLMConversations] " + message, throwable);
     }
 
+    public static void error(String format, Object... args) {
+        LLMConversationsMod.LOGGER.error("[LLMConversations] " + formatMessage(format, args));
+    }
+
     private static String formatMessage(String format, Object... args) {
         String result = format;
         for (Object arg : args) {
