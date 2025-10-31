@@ -198,6 +198,12 @@ public class OpenRouterClient {
             LLMConfig.CLIENT.maxTokens.get());
         request.addProperty("temperature", 
             LLMConfig.CLIENT.temperature.get());
+
+        JsonObject extra_body = new JsonObject();
+        JsonObject reasoning = new JsonObject();
+        reasoning.addProperty("max_tokens", LLMConfig.CLIENT.maxTokens.get() / 2);
+        extra_body.add("reasoning", reasoning);
+        request.add("extra_body", extra_body);
         
         return request;
     }

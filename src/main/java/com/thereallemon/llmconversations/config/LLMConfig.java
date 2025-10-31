@@ -61,7 +61,7 @@ public class LLMConfig {
             maxTokens = builder
                 .comment("Maximum tokens per response")
                 .translation("llmconversations.config.max_tokens")
-                .defineInRange("max_tokens", 150, 50, 500);
+                .defineInRange("max_tokens", 300, 100, 1000);
             
             temperature = builder
                 .comment("Temperature for response generation (0.0-2.0)",
