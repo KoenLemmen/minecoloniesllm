@@ -1,0 +1,12 @@
+# Ensure shell scripts always use LF line endings
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows batch files should use CRLF
+*.bat text eol=crlf
+gradlew.bat text eol=crlf
+
+# Binary files
+*.jar binary
+*.zip binary
+

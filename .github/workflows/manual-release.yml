@@ -29,6 +29,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize line endings
+        run: |
+          git config core.autocrlf false
+          git rm --cached -r .
+          git reset --hard
 
       - name: Validate Gradle Wrapper
         uses: gradle/wrapper-validation-action@v2
